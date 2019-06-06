@@ -21,13 +21,12 @@ const static double ts = 0.01;
 static double y[SENSOR_NUM];
 static double pre_y[SENSOR_NUM];
 // for sensor input
-Adafruit_ADS1115 ads(0x48);
+Adafruit_ADS1115 ads0(0x48);
+Adafruit_ADS1115 ads1(0x49);
 const static double Vin = 5;
 const static double Rref = 986;
 static double Voltage = 0.0;
-static double Rx;
 static int16_t adc0;
-
 
 void calibration(double arr[], double value){
   index = (index + 1) % ARRAY_SIZE;
@@ -42,17 +41,27 @@ double getAverage(double arr[]){
 }
 
 double getResistance(int sensor){
-  adc0 = ads.readADC_SingleEnded(1);
-  Voltage = (adc0 * 0.1875)/1000;
-  y[sensor] = ( tau * pre_y[sensor] + ts * Voltage ) /(tau + ts) ;
-  pre_y[sensor] = y[sensor];
-  return y*Rref/(Vin-y);
+  if(sensor < 4){
+    adc0 = ads.readADC_SingleEnded(sensor);
+    Voltage = (adc0 * 0.1875)/1000;
+    y[sensor] = ( tau * pre_y[sensor] + ts * Voltage ) /(tau + ts) ;
+    pre_y[sensor] = y[sensor];
+    
+  }else{
+    adc0 = ads.readADC_SingleEnded(sensor - 3);
+    Voltage = (adc0 * 0.1875)/1000;
+    y[sensor] = ( tau * pre_y[sensor] + ts * Voltage ) /(tau + ts) ;
+    pre_y[sensor] = y[sensor];
+  }
+  
+  return y[sensor]*Rref/(Vin-y[sensor]);
 }
 
 void setup(void) 
 {
   Serial.begin(9600);  
-  ads.begin();
+  ads0.begin();
+  ads1.begin();
   phase = CALIBRATION_1;
   index = 0;
 }
