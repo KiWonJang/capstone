@@ -8,6 +8,11 @@
 #define CALIBRATION_2 2
 #define MAIN 3
 
+#define GREEN_LED 2
+#define BLUE_LED 3
+#define RED_LED 4
+
+
 // for logic control
 static int phase;
 static unsigned long curTime;
@@ -16,7 +21,7 @@ static unsigned long preTime;
 static double caliArr[SENSOR_NUM][ARRAY_SIZE];
 static double initVal[SENSOR_NUM];
 static double deltaVal[SENSOR_NUM];
-static int index;
+static int cali_index;
 // for calaculate
 static const double theoricalValues[SENSOR_NUM] = {}; // for 10 kg
 static double propConst[SENSOR_NUM];
@@ -36,8 +41,8 @@ static double Voltage = 0.0;
 static int16_t adc0;
 
 void calibration(double arr[], double value){
-  index = (index + 1) % ARRAY_SIZE;
-  arr[index] = value;
+  cali_index = (cali_index + 1) % ARRAY_SIZE;
+  arr[cali_index] = value;
 }
 
 double getAverage(double arr[]){
@@ -65,7 +70,14 @@ double getResistance(int sensor){
 }
 
 double getForce(int sensor, double Rx){
-  return (Rx - initVal[seneor]) * propConst[sensor];
+  return (Rx - initVal[sensor]) * propConst[sensor];
+}
+
+double lightOn(int num){
+  digitalWrite(GREEN_LED, LOW);
+  digitalWrite(BLUE_LED, LOW);
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(num, HIGH);
 }
 
 void setup(void) 
@@ -73,9 +85,14 @@ void setup(void)
   Serial.begin(9600);  
   ads0.begin();
   ads1.begin();
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(BLUE_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  
   phase = CALIBRATION_1;
+  lightOn(RED_LED);
   preTime = millis();
-  index = 0;
+  cali_index = 0;
 }
 
 void loop(void) 
@@ -88,6 +105,7 @@ void loop(void)
       for(int i=0; i<SENSOR_NUM; i++)
         initVal[i] = getAverage(caliArr[i]);
       preTime = millis();
+      lightOn(BLUE_LED);
     }else if (phase == CALIBRATION_2){
       phase = MAIN;
       for(int i=0; i<SENSOR_NUM; i++)
@@ -95,6 +113,7 @@ void loop(void)
       for(int i=0; i<SENSOR_NUM; i++){
         propConst[i] = theoricalValues[i] / (deltaVal[i] - initVal[i]);
       }
+      lightOn(GREEN_LED);
     }
   }
   
@@ -112,8 +131,8 @@ void loop(void)
     case MAIN:
       char_buffer[0] = '\0';
       for(int i=0; i<SENSOR_NUM-1; i++)
-        sprintf(char_buffer, "%s%.3lf,",char_buffer, getForce(i, getResistance(i));
-      sprintf(char_buffer, "%s%.3lf",char_buffer, getForce(6, getResistance(6));
+        sprintf(char_buffer, "%s%.3lf,",char_buffer, getForce(i, getResistance(i)));
+      sprintf(char_buffer, "%s%.3lf",char_buffer, getForce(6, getResistance(6)));
       
       Serial.println(char_buffer);
       break;
