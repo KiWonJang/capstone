@@ -10,11 +10,18 @@
 
 // for logic control
 static int phase;
+static unsigned long curTime;
+static unsigned long preTime;
 // for calibration
 static double caliArr[SENSOR_NUM][ARRAY_SIZE];
 static double initVal[SENSOR_NUM];
 static double deltaVal[SENSOR_NUM];
 static int index;
+// for calaculate
+static const double theoricalValues[SENSOR_NUM] = {}; // for 10 kg
+static double propConst[SENSOR_NUM];
+// for sending data
+static char char_buffer[500];
 // for low-pass filter
 const static double tau = 0.5;
 const static double ts = 0.01;
@@ -57,26 +64,37 @@ double getResistance(int sensor){
   return y[sensor]*Rref/(Vin-y[sensor]);
 }
 
+double getForce(int sensor, double Rx){
+  return (Rx - initVal[seneor]) * propConst[sensor];
+}
+
 void setup(void) 
 {
   Serial.begin(9600);  
   ads0.begin();
   ads1.begin();
   phase = CALIBRATION_1;
+  preTime = millis();
   index = 0;
 }
 
 void loop(void) 
 {
-  if(0){ // timeout
+  curTime = millis();
+  
+  if(phase != MAIN && curTime - preTime >= 20000){ // timeout
     if(phase == CALIBRATION_1){
       phase = CALIBRATION_2;
       for(int i=0; i<SENSOR_NUM; i++)
         initVal[i] = getAverage(caliArr[i]);
+      preTime = millis();
     }else if (phase == CALIBRATION_2){
       phase = MAIN;
       for(int i=0; i<SENSOR_NUM; i++)
         deltaVal[i] = getAverage(caliArr[i]);
+      for(int i=0; i<SENSOR_NUM; i++){
+        propConst[i] = theoricalValues[i] / (deltaVal[i] - initVal[i]);
+      }
     }
   }
   
@@ -92,14 +110,14 @@ void loop(void)
       }
       break;
     case MAIN:
+      char_buffer[0] = '\0';
+      for(int i=0; i<SENSOR_NUM-1; i++)
+        sprintf(char_buffer, "%s%.3lf,",char_buffer, getForce(i, getResistance(i));
+      sprintf(char_buffer, "%s%.3lf",char_buffer, getForce(6, getResistance(6));
+      
+      Serial.println(char_buffer);
       break;
   }
-  
-//  Serial.print("AIN0: "); 
-//  Serial.print(adc0);
-//  Serial.print("\tVoltage: ");
-//  Serial.println(Rx, 4);  
-//  Serial.println();
   
   delay(ts*1000);
 }
