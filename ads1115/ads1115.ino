@@ -4,20 +4,30 @@
 #define ARRAY_SIZE 100
 #define SENSOR_NUM 7
 
+#define CALIBRATION_1 1
+#define CALIBRATION_2 2
+#define MAIN 3
+
+// for logic control
+static int phase;
+// for calibration
+static double caliArr[SENSOR_NUM][ARRAY_SIZE];
+static double initVal[SENSOR_NUM];
+static double deltaVal[SENSOR_NUM];
+static int index;
+// for low-pass filter
+const static double tau = 0.5;
+const static double ts = 0.01;
+static double y[SENSOR_NUM];
+static double pre_y[SENSOR_NUM];
+// for sensor input
 Adafruit_ADS1115 ads(0x48);
-int phase;
-float Voltage = 0.0;
-const static float Vin = 5;
-const static float Rref = 986;
-float Rx;
-static double y[7];
-static double pre_y[7];
-float tau = 0.5;
-float ts = 0.01;
-int16_t adc0;
-static double caliArr[7][ARRAY_SIZE];
-static double initVal[7];
-static double deltaVal[7];
+const static double Vin = 5;
+const static double Rref = 986;
+static double Voltage = 0.0;
+static double Rx;
+static int16_t adc0;
+
 
 void calibration(double arr[], double value){
   index = (index + 1) % ARRAY_SIZE;
@@ -31,17 +41,20 @@ double getAverage(double arr[]){
   return sum / ARRAY_SIZE;
 }
 
-double getSensorData(int sensor){
-  
+double getResistance(int sensor){
+  adc0 = ads.readADC_SingleEnded(1);
+  Voltage = (adc0 * 0.1875)/1000;
+  y[sensor] = ( tau * pre_y[sensor] + ts * Voltage ) /(tau + ts) ;
+  pre_y[sensor] = y[sensor];
+  return y*Rref/(Vin-y);
 }
 
 void setup(void) 
 {
   Serial.begin(9600);  
   ads.begin();
-  adc0 = ads.readADC_SingleEnded(1);
-  pre_y = (adc0 * 0.1875)/1000;
   phase = CALIBRATION_1;
+  index = 0;
 }
 
 void loop(void) 
@@ -49,42 +62,35 @@ void loop(void)
   if(0){ // timeout
     if(phase == CALIBRATION_1){
       phase = CALIBRATION_2;
-      for(int i=0; i<SENSOR_SIZE; i++)
+      for(int i=0; i<SENSOR_NUM; i++)
         initVal[i] = getAverage(caliArr[i]);
     }else if (phase == CALIBRATION_2){
       phase = MAIN;
-      for(int i=0; i<SENSOR_SIZE; i++)
+      for(int i=0; i<SENSOR_NUM; i++)
         deltaVal[i] = getAverage(caliArr[i]);
     }
   }
+  
   switch(phase){
     case CALIBRATION_1:
       for(int i=0; i<SENSOR_NUM; i++){
-        calibration(caliArr[i], getSensorData(i));
+        calibration(caliArr[i], getResistance(i));
       }
       break;
     case CALIBRATION_2:
       for(int i=0; i<SENSOR_NUM; i++){
-        calibration(caliArr[i], getSensorData(i));
+        calibration(caliArr[i], getResistance(i));
       }
       break;
     case MAIN:
       break;
   }
-  adc0 = ads.readADC_SingleEnded(1);
-  Voltage = (adc0 * 0.1875)/1000;
-  y = ( tau * pre_y + ts * Voltage ) /(tau + ts) ;
-  pre_y = y;
-  Rx = y*Rref/(Vin-y);
+  
 //  Serial.print("AIN0: "); 
 //  Serial.print(adc0);
 //  Serial.print("\tVoltage: ");
-  Serial.println(Rx, 4);  
+//  Serial.println(Rx, 4);  
 //  Serial.println();
   
   delay(ts*1000);
-}
-
-void getResistance(){
-  
 }
